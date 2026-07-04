@@ -31,6 +31,7 @@ INS_CALCULATE = 0xa2
 INS_VALIDATE = 0xa3
 INS_CALC_ALL = 0xa4
 INS_SEND_REMAINING = 0xa5
+INS_VERIFY_CODE = 0xb1
 INS_SET_PIN = 0xb4
 INS_CHANGE_PIN = 0xb3
 INS_VERIFY_PIN = 0xb2
@@ -193,6 +194,10 @@ def test_auth(reset_oath):
     with pytest.raises(APDUResponse) as e:
         resp = list_apdu(reset_oath)
     assert([e.value.sw1, e.value.sw2] == [0x69, 0x82])
+
+    with pytest.raises(APDUResponse) as e:
+        send_apdu(reset_oath, INS_VERIFY_CODE, p1=0, p2=0)
+    assert [e.value.sw1, e.value.sw2] == [0x69, 0x82]
 
     aid = [0xa0, 0x00, 0x00, 0x05, 0x27, 0x21, 0x01]
     resp = send_apdu(reset_oath, 0xA4, 0x04, 0x00, aid)

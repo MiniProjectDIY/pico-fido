@@ -977,6 +977,9 @@ static int cmd_verify_otp_pin(void) {
 }
 
 static int cmd_verify_hotp(void) {
+    if (validated == false) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
     tlv_ctx_t ctxi, key = { 0 }, chal = { 0 }, name = { 0 }, code = { 0 };
     tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
     uint32_t code_int = 0;
