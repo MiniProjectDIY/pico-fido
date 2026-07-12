@@ -472,6 +472,14 @@ int cbor_make_credential(const uint8_t *data, size_t len) {
     uint16_t cred_id_len = 0;
 
     CBOR_CHECK(credential_create(&rp.id, &user.id, &user.parent.name, &user.displayName, &options, &extensions, (!ka || ka->use_sign_count == ptrue), alg, curve, cred_id, &cred_id_len));
+    uint8_t cred_idr[CRED_RESIDENT_LEN] = {0};
+    const uint8_t *key_seed = cred_id;
+    size_t key_seed_len = cred_id_len;
+    if (options.rk == ptrue) {
+        credential_derive_resident(cred_id, cred_id_len, cred_idr);
+        key_seed = cred_idr;
+        key_seed_len = sizeof(cred_idr);
+    }
 
     if (getUserVerifiedFlagValue()) {
         flags |= FIDO2_AUT_FLAG_UV;
@@ -572,7 +580,7 @@ int cbor_make_credential(const uint8_t *data, size_t len) {
                     CBOR_ERROR(CTAP1_ERR_INVALID_PARAMETER);
                 }
                 uint8_t cred_random[64] = {0}, *crd = NULL;
-                ret = credential_derive_hmac_key(cred_id, cred_id_len, cred_random);
+                ret = credential_derive_hmac_key(key_seed, key_seed_len, cred_random);
                 if (ret != 0) {
                     mbedtls_platform_zeroize(sharedSecret, sizeof(sharedSecret));
                     CBOR_ERROR(CTAP1_ERR_INVALID_PARAMETER);
@@ -604,7 +612,7 @@ int cbor_make_credential(const uint8_t *data, size_t len) {
     }
     mbedtls_ecp_keypair ekey;
     mbedtls_ecp_keypair_init(&ekey);
-    int ret = fido_load_key(curve, cred_id, &ekey);
+    int ret = fido_load_key(curve, key_seed, &ekey);
     if (ret != 0) {
         mbedtls_ecp_keypair_free(&ekey);
         CBOR_ERROR(CTAP1_ERR_OTHER);
@@ -629,9 +637,7 @@ int cbor_make_credential(const uint8_t *data, size_t len) {
     pa += put_uint32_be(ctr, pa);
     memcpy(pa, aaguid, 16); pa += 16;
     if (options.rk == ptrue) {
-        uint8_t cred_idr[CRED_RESIDENT_LEN] = {0};
         pa += put_uint16_be(sizeof(cred_idr), pa);
-        credential_derive_resident(cred_id, cred_id_len, cred_idr);
         memcpy(pa, cred_idr, sizeof(cred_idr)); pa += sizeof(cred_idr);
     }
     else {
@@ -691,7 +697,7 @@ int cbor_make_credential(const uint8_t *data, size_t len) {
 
     uint8_t largeBlobKey[32] = {0};
     if (extensions.largeBlobKey == ptrue && options.rk == ptrue) {
-        ret = credential_derive_large_blob_key(cred_id, cred_id_len, largeBlobKey);
+        ret = credential_derive_large_blob_key(key_seed, key_seed_len, largeBlobKey);
         if (ret != 0) {
             CBOR_ERROR(CTAP2_ERR_PROCESSING);
         }

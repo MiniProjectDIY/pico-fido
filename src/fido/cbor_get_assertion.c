@@ -285,6 +285,10 @@ int cbor_get_assertion(const uint8_t *data, size_t len, bool next) {
             if (paut.has_rp_id == true && memcmp(paut.rp_id_hash, rp_id_hash, 32) != 0) {
                 CBOR_ERROR(CTAP2_ERR_PIN_AUTH_INVALID);
             }
+            if (paut.has_rp_id == false) {
+                memcpy(paut.rp_id_hash, rp_id_hash, 32);
+                paut.has_rp_id = true;
+            }
             flags |= FIDO2_AUT_FLAG_UV;
             // Check pinUvAuthToken permissions. See 6.2.2.4
         }
@@ -486,6 +490,7 @@ int cbor_get_assertion(const uint8_t *data, size_t len, bool next) {
                 for (int i = 0; i < MAX_CREDENTIAL_COUNT_IN_LIST; i++) {
                     credential_free(&credsx[i]);
                 }
+                numberOfCredentials = MIN(numberOfCredentials, MAX_CREDENTIAL_COUNT_IN_LIST);
                 for (int i = 0; i < numberOfCredentials; i++) {
                     credsx[i] = creds[i];
                 }
@@ -507,10 +512,20 @@ int cbor_get_assertion(const uint8_t *data, size_t len, bool next) {
     }
 
     int ret = 0;
+    const uint8_t *key_seed = NULL;
+    size_t key_seed_len = 0;
+    if (selcred) {
+        key_seed = selcred->id.data;
+        key_seed_len = selcred->id.len;
+        if (selcred->residentId.present == true && credential_resident_id_uses_stable_keys(selcred->residentId.data, selcred->residentId.len)) {
+            key_seed = selcred->residentId.data;
+            key_seed_len = selcred->residentId.len;
+        }
+    }
     uint8_t largeBlobKey[32] = {0};
     if (selcred) {
         if (extensions.largeBlobKey == ptrue && selcred->extensions.largeBlobKey == ptrue) {
-            ret = credential_derive_large_blob_key(selcred->id.data, selcred->id.len, largeBlobKey);
+            ret = credential_derive_large_blob_key(key_seed, key_seed_len, largeBlobKey);
             if (ret != 0) {
                 CBOR_ERROR(CTAP2_ERR_PROCESSING);
             }
@@ -579,7 +594,7 @@ int cbor_get_assertion(const uint8_t *data, size_t len, bool next) {
                     CBOR_ERROR(CTAP1_ERR_INVALID_PARAMETER);
                 }
                 uint8_t cred_random[64] = {0}, *crd = NULL;
-                ret = credential_derive_hmac_key(selcred->id.data, selcred->id.len, cred_random);
+                ret = credential_derive_hmac_key(key_seed, key_seed_len, cred_random);
                 if (ret != 0) {
                     mbedtls_platform_zeroize(sharedSecret, sizeof(sharedSecret));
                     CBOR_ERROR(CTAP1_ERR_INVALID_PARAMETER);
@@ -634,9 +649,9 @@ int cbor_get_assertion(const uint8_t *data, size_t len, bool next) {
     mbedtls_ecp_keypair_init(&ekey);
     size_t olen = 0;
     if (selcred) {
-        ret = fido_load_key((int)selcred->curve, selcred->id.data, &ekey);
+        ret = fido_load_key((int)selcred->curve, key_seed, &ekey);
         if (ret != 0) {
-            if (derive_key(rp_id_hash, false, selcred->id.data, MBEDTLS_ECP_DP_SECP256R1, &ekey) != 0) {
+            if (derive_key(rp_id_hash, false, (uint8_t *)key_seed, MBEDTLS_ECP_DP_SECP256R1, &ekey) != 0) {
                 mbedtls_ecp_keypair_free(&ekey);
                 CBOR_ERROR(CTAP1_ERR_OTHER);
             }

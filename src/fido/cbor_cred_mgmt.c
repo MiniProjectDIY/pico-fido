@@ -279,10 +279,17 @@ int cbor_cred_mgmt(const uint8_t *data, size_t len) {
         if (credential_load_resident(cred_ef, rpIdHash.data, &cred) != 0) {
             CBOR_ERROR(CTAP2_ERR_NOT_ALLOWED);
         }
+        const uint8_t *key_seed = cred.id.data;
+        size_t key_seed_len = cred.id.len;
+        if (cred.residentId.present == true &&
+            credential_resident_id_uses_stable_keys(cred.residentId.data, cred.residentId.len)) {
+            key_seed = cred.residentId.data;
+            key_seed_len = cred.residentId.len;
+        }
 
         mbedtls_ecp_keypair key;
         mbedtls_ecp_keypair_init(&key);
-        if (fido_load_key((int)cred.curve, cred.id.data, &key) != 0) {
+        if (fido_load_key((int)cred.curve, key_seed, &key) != 0) {
             credential_free(&cred);
             mbedtls_ecp_keypair_free(&key);
             CBOR_ERROR(CTAP2_ERR_NOT_ALLOWED);
@@ -358,7 +365,7 @@ int cbor_cred_mgmt(const uint8_t *data, size_t len) {
         if (cred.extensions.present == true) {
             if (cred.extensions.largeBlobKey == ptrue) {
                 uint8_t largeBlobKey[32];
-                int ret = credential_derive_large_blob_key(cred.id.data, cred.id.len, largeBlobKey);
+                int ret = credential_derive_large_blob_key(key_seed, key_seed_len, largeBlobKey);
                 if (ret != 0) {
                     CBOR_ERROR(CTAP2_ERR_PROCESSING);
                 }
