@@ -86,7 +86,7 @@ static uint8_t challenge[CHALLENGE_LEN] = { 0 };
 static const uint8_t oath_secure_key_magic[] = { 'O', 'A', 'T', 'H' };
 
 static bool oath_response_has_room(size_t len) {
-    return res_APDU_size <= USB_BUFFER_SIZE && len <= USB_BUFFER_SIZE - res_APDU_size;
+    return res_APDU_size <= USB_BUFFER_SIZE && len <= (size_t)(USB_BUFFER_SIZE - res_APDU_size);
 }
 
 static bool oath_response_append(uint8_t tag, const uint8_t *data, size_t len) {
