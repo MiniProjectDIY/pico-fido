@@ -240,7 +240,9 @@ int cbor_make_credential(const uint8_t *data, size_t len) {
     display_name = user.displayName.data;
 
     uint8_t flags = FIDO2_AUT_FLAG_AT;
+#ifndef ENABLE_EMULATION
     bool button_pressed = false;
+#endif
     uint8_t rp_id_hash[32] = {0};
     mbedtls_sha256((uint8_t *) rp.id.data, rp.id.len, rp_id_hash, 0);
 
@@ -249,7 +251,9 @@ int cbor_make_credential(const uint8_t *data, size_t len) {
             if (check_user_presence() == false) {
                 CBOR_ERROR(CTAP2_ERR_OPERATION_DENIED);
             }
+#ifndef ENABLE_EMULATION
             button_pressed = phy_data.up_btn != 0;
+#endif
             if (!file_has_data(ef_pin)) {
                 CBOR_ERROR(CTAP2_ERR_PIN_NOT_SET);
             }
@@ -458,7 +462,9 @@ int cbor_make_credential(const uint8_t *data, size_t len) {
                 if (check_user_presence() == false) {
                     CBOR_ERROR(CTAP2_ERR_OPERATION_DENIED);
                 }
+#ifndef ENABLE_EMULATION
                 button_pressed = phy_data.up_btn != 0;
+#endif
             }
         }
         flags |= FIDO2_AUT_FLAG_UP;
@@ -800,9 +806,11 @@ err:
         }
         return error;
     }
+#ifndef ENABLE_EMULATION
     if (!button_pressed) {
         fido_led_3_blinks();
     }
+#endif
     res_APDU_size = (uint16_t)resp_size;
     return 0;
 }
